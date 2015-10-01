@@ -21,7 +21,7 @@ c_evaluator <- function(predictions, labels) {
   } else if (!is.vector(predictions, "numeric")) {
     stop("predictions must be a numeric vector!")
   } else if (length(levels(as.factor(labels))) != 2) {
-    stop("responses must either be a factor with 2 levels!")
+    stop("labels must either be a factor with 2 levels!")
   }
   
   # number of positive instances and number of negative instances
@@ -84,6 +84,11 @@ compute_roc <- function(predictions, labels) {
   return(data.frame(cutoffs, tps, fps))
 }
 
+##########################################################
+# Implemeting Performance Measures Discussed in
+# Pierre Baldi, et al., Bioinformatics, 2000, 412-424
+##########################################################
+
 get_sensitivity <- function(c_evaluator.obj) {
   UseMethod("get_sensitivity", c_evaluator.obj)
 }
@@ -124,4 +129,95 @@ get_npv.c_evaluator <- function(c_evaluator.obj) {
   npv <- tns / (tns + fns)
   cutoff <- c_evaluator.obj$m_roc$cutoffs
   return(data.frame(cutoff, npv))
+}
+
+compute_hamm_dist <- function(predictions, labels, cutoff = 0.5) {
+  # An alternative implementaton would be count the total number of errors
+  # which is equal to fp + fn, this approach is not implemented here though.
+  if (length(predictions) != length(labels)) {
+    stop("predictions and labels must have the same number of entries!")
+  } else if (!is.factor(labels)) {
+    labels <- as.factor(labels)
+  }
+  pos_label <- levels(labels)[2]
+  neg_label <- levels(labels)[1]
+  labels <- ifelse(labels == pos_label, 1, 0)
+  # convert predictions into binary
+  if (is.numeric(predictions)) {
+    predictions <- ifelse(predictions >= cutoff, 1, 0)
+  }  else if (!is.factor(predictions)) {
+    predictions <- as.factor(predictions)
+    predictions <- ifelse(predictions == pos_label, 1, 0)
+  }
+  # compute hamming distance
+  return(sum(abs(predictions - labels)))
+}
+
+get_hamm_dist <- function(c_evaluator.obj) {
+  UseMethod("get_hamm_dist", c_evaluator.obj)
+}
+
+get_hamm_dist.c_evaluator <- function(c_evaluator.obj) {
+  predictions <- c_evaluator.obj$m_predictions
+  labels <- c_evaluator.obj$m_labels
+  cutoff <- c_evaluator.obj$m_roc$cutoffs
+  hamm_dist <- c()
+  for (c in cutoff) {
+    hamm_dist <- c(hamm_dist, compute_hamm_dist(predictions, labels, c))
+  }
+  return(data.frame(cutoff, hamm_dist))
+}
+
+get_quad_dist <- function(c_evaluator.obj) {
+  UseMethod("get_quad_dist", c_evaluator.obj)
+}
+
+get_quad_dist.c_evaluator <- function(c_evaluator.obj) {
+  # this implementation of quadratic distance assumes predictions to be numeric
+  # and no cutoffs is needed
+  predictions <- c_evaluator.obj$m_predictions
+  labels <- c_evaluator.obj$m_labels
+  pos_label <- levels(labels)[2]
+  neg_label <- levels(labels)[1]
+  labels <- ifelse(labels == pos_label, 1, 0)
+  return(sum((predictions - labels)^2))
+}
+
+get_mcc <- function(c_evaluator.obj) {
+  UseMethod("get_mcc", c_evaluator.obj)
+}
+
+get_mcc.c_evaluator <- function(c_evaluator.obj) {
+  # See Pierre Baldi, et al., Bioinformatics, 2000, 412-424
+  # for a derivation of the formula for computing mcc
+  tp <- c_evaluator.obj$m_roc$tps
+  fp <- c_evaluator.obj$m_roc$fps
+  tn <- c_evaluator.obj$m_neg - fp
+  fn <- c_evaluator.obj$m_pos - tp
+  mcc <- (tp * tn - fp * fn) / sqrt((tp + fn) * (tp + fp) * (tn + fp) * (tn + fn))
+  cutoff <- c_evaluator.obj$m_roc$cutoffs
+  return(data.frame(cutoff, mcc))
+}
+
+get_cross_entropy <- function(c_evaluator.obj) {
+  UseMethod("get_cross_entropy", c_evaluator.obj)
+}
+
+entropy_log <- function(x) {
+  # logarithm for entropy calculation
+  ifelse(x == 0, 0, log(x))
+}
+
+get_cross_entropy.c_evaluator <- function(c_evaluator.obj) {
+  #   References
+  #   ----------
+  #   C.M. Bishop (2006). Pattern Recognition and Machine Learning. Springer,
+  #   p. 206.
+  predictions <- c_evaluator.obj$m_predictions
+  labels <- c_evaluator.obj$m_labels
+  pos_label <- levels(labels)[2]
+  neg_label <- levels(labels)[1]
+  labels <- ifelse(labels == pos_label, 1, 0)
+  cross_entropy <- sum(-(labels * entropy_log(predictions) + (1 - labels) * entropy_log(1 - predictions)))
+  return(cross_entropy)
 }
