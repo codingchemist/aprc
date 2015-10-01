@@ -22,7 +22,7 @@ roc <- function(fpr, tpr) {
   )
   
   # set the name of the class
-  class(data_members) <- append(class(data_members), "roc")
+  class(data_members) <- c("roc")
   return(data_members)
 }
 
@@ -181,6 +181,10 @@ tpr_for_fpr <- function(fpr, roc) {
     rocp2 <- c(roc$m_fpr[i], roc$m_tpr[i])
     return(interpolate(rocp1, rocp2, fpr))
   }
+}
+
+average_roc <- function(rocs, fp_samples) {
+  UseMethod("average_roc", rocs)
 }
 
 average_roc.roc <- function(rocs, fp_samples) {
