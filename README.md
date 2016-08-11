@@ -1,2 +1,1 @@
-# aprc
-Assessment of Performance of Regressors and Classifiers
+r package for computing performance of machine learning models
